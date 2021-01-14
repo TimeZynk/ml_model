@@ -12,6 +12,40 @@ from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.neighbors import KNeighborsClassifier
 from top_n import top_n
 
+class MachineLearningModel(object):
+    def __init__(self, db_name = 'tzbackend', company_id, valid_days_backward=3000, valid_days_forward=3000):
+        dbs = MongoClient()
+        self.db_name = db_name
+        self.db = dbs[db_name]
+        self.company_id = company_id
+        self.valid_days_backward = valid_days_backward
+        self.valid_days_forward = valid_days_forward
+        self.booked_shifts = []
+        self.booked_users = []
+
+    def fetch_shifts(self):
+        self.booked_shifts = self.db.shifts1.find(
+            {
+                "$and": [
+                    {
+                        # "company-id": ObjectId('5182a775e4b032662d6920b2')
+                        "company-id": company_id
+                    },
+                    {"booked-users": {"$size": 1}},
+                ]
+            }
+        )
+        return self.booked_shifts
+
+    def fetch_users(self):
+        self.booked_users = self.booked_shifts.distinct("booked-users")
+        return self.booked_users
+
+    
+
+    
+
+
 
 def knn(company_id, k_max=50, valid_days_backward=3000, valid_days_forward=3000):
     dbs = MongoClient()

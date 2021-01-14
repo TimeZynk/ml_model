@@ -7,4 +7,3 @@ def top_n(prob, n):
             res[-1] = (index, value)
         res.sort(reverse=True, key=lambda x: x[1])
     return list(map(lambda x: x[0], res))
-            
