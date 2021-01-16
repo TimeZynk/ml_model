@@ -4,13 +4,14 @@ from bson.objectid import ObjectId
 
 class MachineLearningModel(object):
     def __init__(self, company_id, db_name):
-        dbs = MongoClient()
+        client = MongoClient()
         self.db_name = db_name
-        self.db = dbs[db_name]
+        self.db = client.get_database(db_name)
         self.company_id = ObjectId(company_id)
         self.company_name = self.fetch_company_name()
         self.booked_shifts = None
         self.booked_users = []
+        self.last_update = None
 
     def fetch_shifts(self):
         self.booked_shifts = self.db.shifts1.find(

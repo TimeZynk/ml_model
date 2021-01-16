@@ -48,12 +48,15 @@ class KNN(MachineLearningModel):
         self.lowest_error = 1.0
         self.best_estimator = None
         self.best_k = 0
-        self.last_update = None
         self.fetch_shifts()
         self.fetch_users()
+        self.LabelEncoder = None
+        self.MinMaxScalar = None
+        self.X = None
+        self.recommended_users = None
 
     def datetime_to_features(self, df, name):
-        df[name + "_year"] = df[name].dt.year
+        #df[name + "_year"] = df[name].dt.year
         df[name + "_month"] = df[name].dt.month
         df[name + "_week"] = df[name].dt.isocalendar().week
         df[name + "_day"] = df[name].dt.day
@@ -81,9 +84,9 @@ class KNN(MachineLearningModel):
                 shifts_booked.append(doc["booked-users"][0])
                 shifts_created.append(doc["_name"].generation_time)
 
-        le = LabelEncoder()
+        self.LabelEncoder = LabelEncoder()
         users_df = pd.DataFrame(self.booked_users, columns=["Users"])
-        users_df["Label"] = le.fit_transform(self.booked_users)
+        users_df["Label"] = self.LabelEncoder.fit_transform(self.booked_users)
         shifts_df = pd.DataFrame(shifts_starts, columns=["start"])
         shifts_df["end"] = shifts_ends
         shifts_df["booked-users-id"] = [
@@ -96,10 +99,11 @@ class KNN(MachineLearningModel):
         self.datetime_to_features(shifts_df, "created")
 
         shifts_df.drop(["start", "end", "created"], axis=1, inplace=True)
+        self.MinMaxScalar = MinMaxScaler()
         shifts_df.loc[
-            :, "start_year":"created_dayofweek"
-        ] = MinMaxScaler().fit_transform(
-            shifts_df.loc[:, "start_year":"created_dayofweek"].values
+            :, "start_month":"created_dayofweek"
+        ] = self.MinMaxScalar.fit_transform(
+            shifts_df.loc[:, "start_month":"created_dayofweek"].values
         )
 
         shifts_df = shifts_df.sample(n=len(shifts_df), random_state=random_state)
@@ -139,6 +143,32 @@ class KNN(MachineLearningModel):
         self.last_update = datetime.now()
 
 
+    def recommend(self, start, end, created):
+        if not isinstance(start, datetime) or not isinstance(end, datetime) or not isinstance(created, datetime):
+            raise Exception('"start", "end", and "created" need to be datetime objects.')
+
+        date_df = pd.DataFrame(np.array([[start, end, created]]), columns=['start', 'end', 'created'])
+
+        input_list = []
+        for x in ['start', 'end', 'created']:
+            for y in ['month', 'week', 'day', 'hour', 'dayofweek']:
+                common_str = f'date_df.{x}.dt.'
+                week_str = f'isocalendar().{y}.values[0]' if y == 'week' else f'{y}.values[0]'
+                input_list.append(eval(common_str + week_str))
+
+        input_array = np.array([input_list])
+
+        self.X = self.MinMaxScalar.transform(input_array)
+        pred_proba = self.best_estimator.predict_proba(self.X)
+        top = [top_n(x, self.num_candidates) for x in pred_proba]
+        pred_labels = top[0]
+        self.recommended_users = list(self.LabelEncoder.inverse_transform(pred_labels))
+
+        return self.recommended_users
+
+
+
+
 # model = KNN("5731d9dbe4b0d80ea1c00884")
 # model.train()
 # print(model.best_k)
@@ -146,3 +176,11 @@ class KNN(MachineLearningModel):
 # print(model.lowest_error)
 # print(model.last_update)
 # print(model.company_name)
+# now = datetime.now()
+# one_week_before = datetime.now() - timedelta(weeks=1)
+# one_week_after = datetime.now() + timedelta(weeks=1)
+# print(model.recommend(now, one_week_after, one_week_before))
+
+# two_week_before = datetime.now() - timedelta(weeks=2)
+# two_week_after = datetime.now() + timedelta(weeks=2)
+# print(model.recommend(now, two_week_after, two_week_before))
