@@ -12,6 +12,7 @@ class MachineLearningModel(object):
         self.booked_shifts = None
         self.booked_users = []
         self.last_update = None
+        self.model_status = 0
 
     def fetch_shifts(self):
         self.booked_shifts = self.db.shifts1.find(

@@ -6,6 +6,9 @@ from sklearn.neighbors import KNeighborsClassifier
 from top_n import top_n
 import pandas as pd
 import numpy as np
+import pickle
+import sys
+import logging
 
 
 class KNN(MachineLearningModel):
@@ -34,6 +37,7 @@ class KNN(MachineLearningModel):
         ],
         k_max=50,
         num_candidates=10,
+        save_path="",
     ):
         super().__init__(company_id, db_name)
         self.valid_days_backward = valid_days_backward
@@ -54,9 +58,11 @@ class KNN(MachineLearningModel):
         self.MinMaxScalar = None
         self.X = None
         self.recommended_users = None
+        self.save_path = save_path
+        self.filename = ""
 
     def datetime_to_features(self, df, name):
-        #df[name + "_year"] = df[name].dt.year
+        # df[name + "_year"] = df[name].dt.year
         df[name + "_month"] = df[name].dt.month
         df[name + "_week"] = df[name].dt.isocalendar().week
         df[name + "_day"] = df[name].dt.day
@@ -64,6 +70,8 @@ class KNN(MachineLearningModel):
         df[name + "_dayofweek"] = df[name].dt.dayofweek
 
     def preprocessing(self, train_frac=0.9, random_state=42):
+
+        logger = logging.getLogger(__name__)
 
         shifts_starts = []
         shifts_ends = []
@@ -83,6 +91,19 @@ class KNN(MachineLearningModel):
                 shifts_ends.append(datetime.strptime(doc["end"], fmt))
                 shifts_booked.append(doc["booked-users"][0])
                 shifts_created.append(doc["_name"].generation_time)
+
+        if len(shifts_starts) < 100:
+            logger.warning(
+                f"No shifts or not enough shifts to preprocess for {self.company_name}, id: {self.company_id}."
+            )
+            self.model_status = -1
+            return (None, None, None, None)
+        elif not shifts_booked:
+            logger.warning(
+                f"No history of booked users to preprocess for {self.company_name}, id: {self.company_id}."
+            )
+            self.model_status = -1
+            return (None, None, None, None)
 
         self.LabelEncoder = LabelEncoder()
         users_df = pd.DataFrame(self.booked_users, columns=["Users"])
@@ -126,34 +147,87 @@ class KNN(MachineLearningModel):
                 error += 1
         return error / len(self.y_test)
 
+    def save_model(self):
+        self.filename = self.save_path + str(self.company_id)
+        models_tuple = (self.MinMaxScalar, self.best_estimator)
+        pickle.dump(models_tuple, open(self.filename, "wb"))
+        # Free up the memory
+        self.MinMaxScalar = None
+        self.best_estimator = None
+
+    def load_model(self):
+        logger = logging.getLogger(__name__)
+
+        if self.model_status == 1:
+            with open(self.filename, "rb") as f:
+                self.MinMaxScalar, self.best_estimator = pickle.load(f)
+        else:
+            logger.warning(
+                f"No model available for loading for {self.company_name}, id: {self.company_id}."
+            )
+
     def train(self):
+
+        logger = logging.getLogger(__name__)
+
         self.X_train, self.X_test, self.y_train, self.y_test = self.preprocessing()
 
-        for i in range(1, self.k_max):
-            knn = KNeighborsClassifier(n_neighbors=i)
-            knn.fit(self.X_train, self.y_train)
-            pred_proba = knn.predict_proba(self.X_test)
-            error_rate = self.calc_error(pred_proba)
+        if self.model_status != -1:
 
-            if error_rate < self.lowest_error:
-                self.lowest_error = error_rate
-                self.best_estimator = knn
-                self.best_k = i
+            self.lowest_error = 1.0
 
-        self.last_update = datetime.now()
+            for i in range(1, self.k_max):
+                knn = KNeighborsClassifier(n_neighbors=i)
+                knn.fit(self.X_train, self.y_train)
+                pred_proba = knn.predict_proba(self.X_test)
+                error_rate = self.calc_error(pred_proba)
 
+                if error_rate < self.lowest_error:
+                    self.lowest_error = error_rate
+                    self.best_estimator = knn
+                    self.best_k = i
+
+            self.save_model()
+            self.last_update = datetime.now()
+            self.model_status = 1
+        else:
+            logger.warning(
+                f"No preprocessed data to train for {self.company_name}, id: {self.company_id}."
+            )
 
     def recommend(self, start, end, created):
-        if not isinstance(start, datetime) or not isinstance(end, datetime) or not isinstance(created, datetime):
-            raise Exception('"start", "end", and "created" need to be datetime objects.')
 
-        date_df = pd.DataFrame(np.array([[start, end, created]]), columns=['start', 'end', 'created'])
+        logger = logging.getLogger(__name__)
+
+        if (
+            not isinstance(start, datetime)
+            or not isinstance(end, datetime)
+            or not isinstance(created, datetime)
+        ):
+            logger.warning(
+                f"start, end, and created need to be datetime objects, please try again."
+            )
+            return -1
+
+        if self.model_status == 1:
+            self.load_model()
+        else:
+            logger.warning(
+                f"No model available at the moment for prediction for {self.company_name}, id: {self.company_id}. Please try to train the model first. In case the training was not successful, more data will be needed."
+            )
+            return -1
+
+        date_df = pd.DataFrame(
+            np.array([[start, end, created]]), columns=["start", "end", "created"]
+        )
 
         input_list = []
-        for x in ['start', 'end', 'created']:
-            for y in ['month', 'week', 'day', 'hour', 'dayofweek']:
-                common_str = f'date_df.{x}.dt.'
-                week_str = f'isocalendar().{y}.values[0]' if y == 'week' else f'{y}.values[0]'
+        for x in ["start", "end", "created"]:
+            for y in ["month", "week", "day", "hour", "dayofweek"]:
+                common_str = f"date_df.{x}.dt."
+                week_str = (
+                    f"isocalendar().{y}.values[0]" if y == "week" else f"{y}.values[0]"
+                )
                 input_list.append(eval(common_str + week_str))
 
         input_array = np.array([input_list])
@@ -167,9 +241,7 @@ class KNN(MachineLearningModel):
         return self.recommended_users
 
 
-
-
-# model = KNN("5731d9dbe4b0d80ea1c00884")
+# model = KNN("536ce41ae4b0c1bec0664b4d")
 # model.train()
 # print(model.best_k)
 # print(model.best_estimator)
