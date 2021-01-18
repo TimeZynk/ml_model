@@ -1,4 +1,6 @@
-from machine_learning_model import MachineLearningModel
+from machine_learning_model import (
+    MachineLearningModel,
+)
 from datetime import datetime
 from datetime import timedelta
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
