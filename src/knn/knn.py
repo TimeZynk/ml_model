@@ -1,22 +1,25 @@
-from machine_learning_model import (
+from knn.machine_learning_model import (
     MachineLearningModel,
 )
 from datetime import datetime
 from datetime import timedelta
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.neighbors import KNeighborsClassifier
-from top_n import top_n
+from knn.top_n import top_n
 import pandas as pd
 import numpy as np
 import pickle
 import sys
 import logging
+from pathlib import Path
 
 
 class KNN(MachineLearningModel):
     def __init__(
         self,
+        save_path,
         company_id,
+        mongo_uri,
         db_name="tzbackend",
         valid_days_backward=3000,
         valid_days_forward=3000,
@@ -39,9 +42,8 @@ class KNN(MachineLearningModel):
         ],
         k_max=50,
         num_candidates=10,
-        save_path="",
     ):
-        super().__init__(company_id, db_name)
+        super().__init__(company_id, mongo_uri, db_name)
         self.valid_days_backward = valid_days_backward
         self.valid_days_forward = valid_days_forward
         self.col_to_use = col_to_use
@@ -57,7 +59,7 @@ class KNN(MachineLearningModel):
         self.fetch_shifts()
         self.fetch_users()
         self.LabelEncoder = None
-        self.MinMaxScalar = None
+        self.MinMaxScaler = None
         self.X = None
         self.recommended_users = None
         self.save_path = save_path
@@ -98,13 +100,12 @@ class KNN(MachineLearningModel):
             logger.warning(
                 f"No shifts or not enough shifts to preprocess for {self.company_name}, id: {self.company_id}."
             )
-            self.model_status = -1
+
             return (None, None, None, None)
         elif not shifts_booked:
             logger.warning(
                 f"No history of booked users to preprocess for {self.company_name}, id: {self.company_id}."
             )
-            self.model_status = -1
             return (None, None, None, None)
 
         self.LabelEncoder = LabelEncoder()
@@ -122,10 +123,10 @@ class KNN(MachineLearningModel):
         self.datetime_to_features(shifts_df, "created")
 
         shifts_df.drop(["start", "end", "created"], axis=1, inplace=True)
-        self.MinMaxScalar = MinMaxScaler()
+        self.MinMaxScaler = MinMaxScaler()
         shifts_df.loc[
             :, "start_month":"created_dayofweek"
-        ] = self.MinMaxScalar.fit_transform(
+        ] = self.MinMaxScaler.fit_transform(
             shifts_df.loc[:, "start_month":"created_dayofweek"].values
         )
 
@@ -151,18 +152,21 @@ class KNN(MachineLearningModel):
 
     def save_model(self):
         self.filename = self.save_path + str(self.company_id)
-        models_tuple = (self.MinMaxScalar, self.best_estimator)
+        models_tuple = (self.MinMaxScaler, self.best_estimator, self.LabelEncoder)
         pickle.dump(models_tuple, open(self.filename, "wb"))
         # Free up the memory
-        self.MinMaxScalar = None
+        self.MinMaxScaler = None
         self.best_estimator = None
+        self.LabelEncoder = None
 
     def load_model(self):
         logger = logging.getLogger(__name__)
 
-        if self.model_status == 1:
+        if Path(self.filename).is_file():
             with open(self.filename, "rb") as f:
-                self.MinMaxScalar, self.best_estimator = pickle.load(f)
+                self.MinMaxScaler, self.best_estimator, self.LabelEncoder = pickle.load(
+                    f
+                )
         else:
             logger.warning(
                 f"No model available for loading for {self.company_name}, id: {self.company_id}."
@@ -174,7 +178,11 @@ class KNN(MachineLearningModel):
 
         self.X_train, self.X_test, self.y_train, self.y_test = self.preprocessing()
 
-        if self.model_status != -1:
+        if self.X_train is None:
+            logger.warning(
+                f"No preprocessed data to train for {self.company_name}, id: {self.company_id}."
+            )
+        else:
 
             self.lowest_error = 1.0
 
@@ -191,56 +199,51 @@ class KNN(MachineLearningModel):
 
             self.save_model()
             self.last_update = datetime.now()
-            self.model_status = 1
-        else:
-            logger.warning(
-                f"No preprocessed data to train for {self.company_name}, id: {self.company_id}."
-            )
 
-    def recommend(self, start, end, created):
+    # def recommend(self, start, end, created):
 
-        logger = logging.getLogger(__name__)
+    #     logger = logging.getLogger(__name__)
 
-        if (
-            not isinstance(start, datetime)
-            or not isinstance(end, datetime)
-            or not isinstance(created, datetime)
-        ):
-            logger.warning(
-                f"start, end, and created need to be datetime objects, please try again."
-            )
-            return -1
+    #     if (
+    #         not isinstance(start, datetime)
+    #         or not isinstance(end, datetime)
+    #         or not isinstance(created, datetime)
+    #     ):
+    #         logger.warning(
+    #             f"start, end, and created need to be datetime objects, please try again."
+    #         )
+    #         return -1
 
-        if self.model_status == 1:
-            self.load_model()
-        else:
-            logger.warning(
-                f"No model available at the moment for prediction for {self.company_name}, id: {self.company_id}. Please try to train the model first. In case the training was not successful, more data will be needed."
-            )
-            return -1
+    #     if Path(self.filename).is_file():
+    #         self.load_model()
+    #     else:
+    #         logger.warning(
+    #             f"No model available at the moment for prediction for {self.company_name}, id: {self.company_id}. Please try to train the model first. In case the training was not successful, more data will be needed."
+    #         )
+    #         return -1
 
-        date_df = pd.DataFrame(
-            np.array([[start, end, created]]), columns=["start", "end", "created"]
-        )
+    #     date_df = pd.DataFrame(
+    #         np.array([[start, end, created]]), columns=["start", "end", "created"]
+    #     )
 
-        input_list = []
-        for x in ["start", "end", "created"]:
-            for y in ["month", "week", "day", "hour", "dayofweek"]:
-                common_str = f"date_df.{x}.dt."
-                week_str = (
-                    f"isocalendar().{y}.values[0]" if y == "week" else f"{y}.values[0]"
-                )
-                input_list.append(eval(common_str + week_str))
+    #     input_list = []
+    #     for x in ["start", "end", "created"]:
+    #         for y in ["month", "week", "day", "hour", "dayofweek"]:
+    #             common_str = f"date_df.{x}.dt."
+    #             week_str = (
+    #                 f"isocalendar().{y}.values[0]" if y == "week" else f"{y}.values[0]"
+    #             )
+    #             input_list.append(eval(common_str + week_str))
 
-        input_array = np.array([input_list])
+    #     input_array = np.array([input_list])
 
-        self.X = self.MinMaxScalar.transform(input_array)
-        pred_proba = self.best_estimator.predict_proba(self.X)
-        top = [top_n(x, self.num_candidates) for x in pred_proba]
-        pred_labels = top[0]
-        self.recommended_users = list(self.LabelEncoder.inverse_transform(pred_labels))
+    #     self.X = self.MinMaxScaler.transform(input_array)
+    #     pred_proba = self.best_estimator.predict_proba(self.X)
+    #     top = [top_n(x, self.num_candidates) for x in pred_proba]
+    #     pred_labels = top[0]
+    #     self.recommended_users = list(self.LabelEncoder.inverse_transform(pred_labels))
 
-        return self.recommended_users
+    #     return self.recommended_users
 
 
 # model = KNN("536ce41ae4b0c1bec0664b4d")

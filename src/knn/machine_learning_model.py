@@ -3,16 +3,16 @@ from bson.objectid import ObjectId
 
 
 class MachineLearningModel(object):
-    def __init__(self, company_id, db_name):
-        client = MongoClient()
+    def __init__(self, company_id, mongo_uri, db_name="tzbackend"):
+        self.mongo_uri = mongo_uri
+        client = MongoClient(self.mongo_uri)
         self.db_name = db_name
-        self.db = client.get_database(db_name)
+        self.db = client.get_database(self.db_name)
         self.company_id = ObjectId(company_id)
         self.company_name = self.fetch_company_name()
         self.booked_shifts = None
         self.booked_users = []
         self.last_update = None
-        self.model_status = 0
 
     def fetch_shifts(self):
         self.booked_shifts = self.db.shifts1.find(
