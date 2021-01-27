@@ -1,5 +1,6 @@
 # machine learning model (training)
 To use it, just docker build and run in the project directory:
+
     docker build -t ml_train:latest .
     docker run -v "/absolute/path/of/the/desired/directory/on/local:/app/trained_models"  ml_train
 
