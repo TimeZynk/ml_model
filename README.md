@@ -1,4 +1,6 @@
 # machine learning model (training)
+This package is designed to perform machine learning recommendation of users on the basis of booking history (important!), using the start time, end time, time of creation of queried shift as input variables. It is an implementation of K Nearest Neighbor model, which measures the similarity of any two points in the input space, and make prediction about the class of the input point by taking the class that is most favored by its neighboring points. 
+
 To use it, just docker build and run in the project directory:
 
     docker build -t ml_train:latest .
