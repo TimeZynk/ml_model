@@ -58,7 +58,8 @@ class ModelManager(object):
         logger = logging.getLogger(__name__)
         logger.info(f"Fetch data for subscribed companies.")
 
-        client = MongoClient(self.mongo_uri, readPreference=ReadPreference.SECONDARY)
+        # client = MongoClient(self.mongo_uri)
+        client = MongoClient(self.mongo_uri)
         db = client.get_database(self.db_name)
 
         companies_pipeline = [
@@ -84,6 +85,7 @@ class ModelManager(object):
         for company_id in self.subscribed_companies:
             logger.info(f"Create model for company id: {company_id}.")
             self.models[company_id] = KNN(
+                self.save_path,
                 company_id,
                 self.mongo_uri,
                 self.db_name,
@@ -92,7 +94,6 @@ class ModelManager(object):
                 self.col_to_use,
                 self.k_max,
                 self.num_candidates,
-                self.save_path,
             )
 
     def train_all_models(self):
@@ -107,6 +108,7 @@ class ModelManager(object):
         company_id_str = self.convert_id(company_id)
         if company_id_str not in self.models.keys():
             self.models[company_id_str] = KNN(
+                self.save_path,
                 company_id,
                 self.mongo_uri,
                 self.db_name,
@@ -115,7 +117,6 @@ class ModelManager(object):
                 self.col_to_use,
                 self.k_max,
                 self.num_candidates,
-                self.save_path,
             )
 
     def train_a_model(self, company_id):

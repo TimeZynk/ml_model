@@ -3,8 +3,9 @@ from bson.objectid import ObjectId
 
 
 class MachineLearningModel(object):
-    def __init__(self, company_id, mongo_uri, db_name="tzbackend"):
+    def __init__(self, company_id, mongo_uri, db_name):
         self.mongo_uri = mongo_uri
+        # client = MongoClient(self.mongo_uri)
         client = MongoClient(self.mongo_uri)
         self.db_name = db_name
         self.db = client.get_database(self.db_name)

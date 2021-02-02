@@ -16,11 +16,11 @@ COPY src/ .
 # Precompile python code for performance
 RUN python3 -m compileall .
 
-ENV MODELS_DIR=/home/chuck/folder/data_mining/ml_model/trained_models
+RUN mkdir /app/trained_models
 
-ENV MONGO_URI=mongodb://localhost/tzbackend
+ENV MODELS_DIR=/app/trained_models
 
-EXPOSE 5000
+ENV MONGO_URI=mongodb://192.168.1.20/tzbackend
 
 # command to run on container start
 CMD [ "python3", "./app.py" ]

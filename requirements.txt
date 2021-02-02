@@ -1,5 +1,4 @@
-flask
-pymongo
-sklearn
-pandas
-numpy
+pandas==1.2.1
+numpy==1.19.5
+pymongo==3.11.2
+scikit_learn==0.24.1

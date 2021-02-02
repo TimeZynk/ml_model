@@ -151,7 +151,7 @@ class KNN(MachineLearningModel):
         return error / len(self.y_test)
 
     def save_model(self):
-        self.filename = self.save_path + str(self.company_id)
+        self.filename = self.save_path + "/" + str(self.company_id)
         models_tuple = (self.MinMaxScaler, self.best_estimator, self.LabelEncoder)
         pickle.dump(models_tuple, open(self.filename, "wb"))
         # Free up the memory
