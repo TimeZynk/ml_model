@@ -16,6 +16,26 @@ class MachineLearningModel(object):
         self.last_update = None
 
     def fetch_shifts(self):
+
+        active_cursor = self.db.users.aggregate(
+            [
+                {"$match": {"company-id": self.company_id, "archived": None}},
+                {"$project": {"_id": "$_id"}},
+            ]
+        )
+
+        active = [x["_id"] for x in active_cursor]
+
+        # all_user_cursor = self.db.users.aggregate(
+        #     [
+        #         {"$match": {"company-id": self.company_id}},
+        #         {"$project": {"_id": "$_id"}},
+        #     ]
+        # )
+
+        # all_user = [str(x["_id"]) for x in all_user_cursor]
+
+        # print(len(active), len(all_user))
         self.booked_shifts = self.db.shifts1.find(
             {
                 "$and": [
@@ -24,9 +44,11 @@ class MachineLearningModel(object):
                         "company-id": self.company_id
                     },
                     {"booked-users": {"$size": 1}},
+                    {"booked-users.0": {"$in": active}},
                 ]
             }
         )
+
         return self.booked_shifts
 
     def fetch_users(self):
