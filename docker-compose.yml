@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  ml_train:
+    build: .
+    volumes:
+      - type: bind
+        source: /home/chuck/folder/trained_models
+        target: /app/trained_models

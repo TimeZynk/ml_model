@@ -1,5 +1,6 @@
 from pymongo import MongoClient
 from bson.objectid import ObjectId
+from datetime import datetime
 
 
 class MachineLearningModel(object):
@@ -19,7 +20,12 @@ class MachineLearningModel(object):
 
         active_cursor = self.db.users.aggregate(
             [
-                {"$match": {"company-id": self.company_id, "archived": None}},
+                {
+                    "$match": {
+                        "company-id": self.company_id,
+                        "archived": None,
+                    }
+                },
                 {"$project": {"_id": "$_id"}},
             ]
         )
