@@ -9,6 +9,7 @@ import logging
 import pickle
 from pathlib import Path
 import os
+import time
 
 # logging.basicConfig(format="%(asctime)-15s %(message)s", level=logging.INFO)
 
@@ -99,8 +100,12 @@ class ModelManager(object):
     def train_all_models(self):
         logger = logging.getLogger(__name__)
         for company_id in self.subscribed_companies:
+            t1 = time.perf_counter()
             logger.info(f"Train model for company id: {company_id}.")
             self.models[company_id].train()
+            deltaT = time.perf_counter() - t1
+            if deltaT < 1:
+                time.sleep(1 - deltaT)
 
     def create_a_model(self, company_id):
         logger = logging.getLogger(__name__)

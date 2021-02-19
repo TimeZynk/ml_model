@@ -6,3 +6,9 @@ services:
       - type: bind
         source: /home/chuck/folder/trained_models
         target: /app/trained_models
+    environment:
+      - MONGO_URI=mongodb://192.168.1.20/tzbackend
+      - MODELS_DIR=/app/trained_models
+      - HOUR=17
+      - MINUTE=45
+      - SECOND=0

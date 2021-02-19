@@ -18,9 +18,11 @@ RUN python3 -m compileall .
 
 RUN mkdir /app/trained_models
 
-ENV MODELS_DIR=/app/trained_models
-
-ENV MONGO_URI=mongodb://192.168.1.20/tzbackend
+# ENV MONGO_URI="mongodb://192.168.1.20/tzbackend"
+# ENV MODELS_DIR="/app/trained_models"
+# ENV HOUR=17
+# ENV MINUTE=54
+# ENV SECOND=0
 
 # command to run on container start
 CMD [ "python3", "./app.py" ]
