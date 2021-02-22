@@ -3,6 +3,7 @@ import os
 import logging
 from datetime import datetime
 from debounce import debounce
+import time
 
 logging.basicConfig(format="%(asctime)-15s %(message)s", level=logging.INFO)
 
@@ -26,13 +27,13 @@ def run():
 
 
 if __name__ == "__main__":
-    # run()
 
-    while True:
-        now = datetime.now()
-        if (
-            now.hour == int(os.getenv("HOUR"))
-            and now.minute == int(os.getenv("MINUTE"))
-            and now.second == int(os.getenv("SECOND"))
-        ):
+    if bool(os.getenv("DEV_ENV")):
+        run()
+    while True and not bool(os.getenv("DEV_ENV")):
+        cur_time = time.strftime("%H:%M:%S")
+        runs_at = (
+            os.getenv("RUNS_AT") if os.getenv("RUNS_AT") is not None else "02:00:00"
+        )
+        if cur_time == os.getenv("RUNS_AT"):
             run()
